@@ -213,3 +213,10 @@ async def test_upgrade_professional_status_as_manager(async_client: AsyncClient,
     assert data["is_professional"] is True
     user_in_db = await db_session.get(User, verified_user.id)
     assert user_in_db.professional_status_updated_at is not None
+
+@pytest.mark.asyncio
+async def test_upgrade_professional_status_as_user_forbidden(async_client: AsyncClient, user, user_token, verified_user):
+    # A normal user should not be allowed to upgrade someone else's professional status
+    headers = {"Authorization": f"Bearer {user_token}"}
+    response = await async_client.post(f"/users/{verified_user.id}/upgrade-professional", headers=headers)
+    assert response.status_code == 403, "Normal user should not be able to upgrade professional status."
