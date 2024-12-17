@@ -228,3 +228,25 @@ async def test_upgrade_professional_status_user_not_found(async_client: AsyncCli
     headers = {"Authorization": f"Bearer {admin_token}"}
     response = await async_client.post(f"/users/{non_existent_user_id}/upgrade-professional", headers=headers)
     assert response.status_code == 404, "Should return 404 if user not found."
+
+@pytest.mark.asyncio
+async def test_update_user_profile_as_admin(async_client: AsyncClient, admin_user, admin_token, verified_user, db_session):
+    # Admin can update any field, including restricted ones
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    updated_data = {
+        "email": "new_email@example.com",
+        "nickname": "new_nickname",
+        "role": "ADMIN",  # Admin can update role
+        "bio": "Updated bio"
+    }
+    response = await async_client.put(f"/users/{verified_user.id}/profile", json=updated_data, headers=headers)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["email"] == "new_email@example.com"
+    assert data["nickname"] == "new_nickname"
+    assert data["role"] == "ADMIN"  # Should be updated by an admin
+    user_in_db = await db_session.get(User, verified_user.id)
+    assert user_in_db.email == "new_email@example.com"
+    assert user_in_db.nickname == "new_nickname"
+    assert user_in_db.role == UserRole.ADMIN
+

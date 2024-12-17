@@ -48,7 +48,7 @@ class UserUpdate(UserBase):
     profile_picture_url: Optional[str] = Field(None, example="https://example.com/profiles/john.jpg")
     linkedin_profile_url: Optional[str] =Field(None, example="https://linkedin.com/in/johndoe")
     github_profile_url: Optional[str] = Field(None, example="https://github.com/johndoe")
-    role: Optional[str] = Field(None, example="AUTHENTICATED")
+    role: Optional[UserRole] = None
     is_professional: Optional[bool] = Field(default=False, example=True)
     professional_status_updated_at: Optional[datetime] = None
 
