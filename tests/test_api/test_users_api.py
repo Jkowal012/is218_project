@@ -220,3 +220,11 @@ async def test_upgrade_professional_status_as_user_forbidden(async_client: Async
     headers = {"Authorization": f"Bearer {user_token}"}
     response = await async_client.post(f"/users/{verified_user.id}/upgrade-professional", headers=headers)
     assert response.status_code == 403, "Normal user should not be able to upgrade professional status."
+
+@pytest.mark.asyncio
+async def test_upgrade_professional_status_user_not_found(async_client: AsyncClient, admin_token):
+    # Attempting to upgrade a non-existent user
+    non_existent_user_id = "00000000-0000-0000-0000-000000000000"
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    response = await async_client.post(f"/users/{non_existent_user_id}/upgrade-professional", headers=headers)
+    assert response.status_code == 404, "Should return 404 if user not found."
