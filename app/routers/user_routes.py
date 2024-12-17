@@ -18,6 +18,7 @@ Key Highlights:
 - Utilizes OAuth2PasswordBearer for securing API endpoints, requiring valid access tokens for operations.
 """
 
+from sqlalchemy import func
 from builtins import dict, int, len, str
 from datetime import timedelta
 from uuid import UUID
@@ -291,5 +292,34 @@ async def update_user_profile(
     updated_user = await UserService.update(db, user.id, update_data)
     if not updated_user:
         raise HTTPException(status_code=500, detail="Failed to update profile")
+
+    return UserResponse.model_validate(updated_user)
+
+@router.post("/users/{user_id}/upgrade-professional", response_model=UserResponse, tags=["User Management Requires (Admin or Manager Roles)"])
+async def upgrade_professional_status(
+    user_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    email_service: EmailService = Depends(get_email_service),
+    current_user: dict = Depends(require_role(["ADMIN", "MANAGER"]))
+):
+    user = await UserService.get_by_id(db, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Set professional status and timestamp
+    update_data = {
+        "is_professional": True,
+        "professional_status_updated_at": func.now()
+    }
+    updated_user = await UserService.update(db, user_id, update_data)
+    if not updated_user:
+        raise HTTPException(status_code=500, detail="Failed to upgrade professional status")
+
+    # Send notification email about professional upgrade
+    # Ensure you have a template named 'professional_status_upgrade.md' in your email_templates directory
+    await email_service.send_user_email({
+        "name": updated_user.first_name or updated_user.nickname,
+        "email": updated_user.email
+    }, 'professional_status_upgrade')
 
     return UserResponse.model_validate(updated_user)
