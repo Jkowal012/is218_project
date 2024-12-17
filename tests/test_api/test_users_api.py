@@ -202,3 +202,14 @@ async def test_upgrade_professional_status_as_admin(async_client: AsyncClient, a
     # Check timestamp is updated
     user_in_db = await db_session.get(User, verified_user.id)
     assert user_in_db.professional_status_updated_at is not None, "Timestamp should be set after upgrade."
+
+@pytest.mark.asyncio
+async def test_upgrade_professional_status_as_manager(async_client: AsyncClient, manager_user, manager_token, verified_user, db_session):
+    # Manager upgrading a verified user's professional status
+    headers = {"Authorization": f"Bearer {manager_token}"}
+    response = await async_client.post(f"/users/{verified_user.id}/upgrade-professional", headers=headers)
+    assert response.status_code == 200, "Manager should be able to upgrade a user's professional status."
+    data = response.json()
+    assert data["is_professional"] is True
+    user_in_db = await db_session.get(User, verified_user.id)
+    assert user_in_db.professional_status_updated_at is not None
