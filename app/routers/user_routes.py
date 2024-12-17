@@ -245,3 +245,51 @@ async def verify_email(user_id: UUID, token: str, db: AsyncSession = Depends(get
     if await UserService.verify_email_with_token(db, user_id, token):
         return {"message": "Email verified successfully"}
     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired verification token")
+
+@router.put("/users/{user_id}/profile", response_model=UserResponse, tags=["User Profile"])
+async def update_user_profile(
+    user_id: UUID,
+    user_update: UserUpdate,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    # Fetch the target user from the database
+    user = await UserService.get_by_id(db, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Identify roles
+    current_role = current_user.get("role")
+    current_user_id = current_user.get("user_id")  # This is likely the user's email or unique ID from the token
+
+    # If the current user is neither ADMIN nor MANAGER, they must be updating their own profile
+    if current_role not in ["ADMIN", "MANAGER"]:
+        # If the current user is not admin/manager, ensure they are updating themselves
+        # Depending on how the "sub" claim in JWT is set, this might be email or a UUID.
+        # If "user_id" in current_user is actually an email, you need to fetch by email or
+        # ensure that tokens store the user's UUID in "sub".
+        # Here we assume user.id and current_user_id both represent the same type of identifier (UUID).
+        
+        # If current_user_id is email, fetch user by email and compare IDs
+        # If current_user_id is a UUID (the user's id), you can directly compare:
+        
+        # Let's assume current_user_id matches user.id for simplicity:
+        if str(user.id) != str(current_user_id):
+            raise HTTPException(status_code=403, detail="You can only update your own profile")
+
+        # Non-admin users cannot update certain fields (like role, is_locked, is_professional)
+        restricted_fields = ["role", "is_locked", "is_professional", "professional_status_updated_at"]
+        update_data = user_update.model_dump(exclude_unset=True)
+        for field in restricted_fields:
+            update_data.pop(field, None)
+    else:
+        # Admins/Managers can update any user's profile and any field,
+        # but you may want to restrict certain fields even for admins if needed.
+        update_data = user_update.model_dump(exclude_unset=True)
+
+    updated_user = await UserService.update(db, user.id, update_data)
+    if not updated_user:
+        raise HTTPException(status_code=500, detail="Failed to update profile")
+
+    return UserResponse.model_validate(updated_user)
