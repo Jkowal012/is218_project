@@ -307,3 +307,14 @@ async def test_user_cannot_update_another_users_profile(async_client: AsyncClien
     }
     response = await async_client.put(f"/users/{admin_user.id}/profile", json=updated_data, headers=headers)
     assert response.status_code == 403, "User should not be able to update another user's profile."
+
+@pytest.mark.asyncio
+async def test_update_profile_user_not_found(async_client: AsyncClient, admin_token):
+    # Attempting to update a non-existent user's profile
+    non_existent_user_id = "00000000-0000-0000-0000-000000000000"
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    updated_data = {
+        "bio": "Update attempt on non-existent user"
+    }
+    response = await async_client.put(f"/users/{non_existent_user_id}/profile", json=updated_data, headers=headers)
+    assert response.status_code == 404, "Should return 404 if user not found."
