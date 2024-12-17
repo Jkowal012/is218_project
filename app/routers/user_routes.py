@@ -18,6 +18,7 @@ Key Highlights:
 - Utilizes OAuth2PasswordBearer for securing API endpoints, requiring valid access tokens for operations.
 """
 
+from datetime import datetime, timezone
 from sqlalchemy import func
 from builtins import dict, int, len, str
 from datetime import timedelta
@@ -309,7 +310,7 @@ async def upgrade_professional_status(
     # Set professional status and timestamp
     update_data = {
         "is_professional": True,
-        "professional_status_updated_at": func.now()
+        "professional_status_updated_at": datetime.now(timezone.utc)
     }
     updated_user = await UserService.update(db, user_id, update_data)
     if not updated_user:

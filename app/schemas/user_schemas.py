@@ -27,6 +27,8 @@ class UserBase(BaseModel):
     linkedin_profile_url: Optional[str] =Field(None, example="https://linkedin.com/in/johndoe")
     github_profile_url: Optional[str] = Field(None, example="https://github.com/johndoe")
     role: UserRole
+    is_professional: Optional[bool] = Field(default=False, example=True)
+    professional_status_updated_at: Optional[datetime] = None
 
     _validate_urls = validator('profile_picture_url', 'linkedin_profile_url', 'github_profile_url', pre=True, allow_reuse=True)(validate_url)
  
@@ -47,6 +49,8 @@ class UserUpdate(UserBase):
     linkedin_profile_url: Optional[str] =Field(None, example="https://linkedin.com/in/johndoe")
     github_profile_url: Optional[str] = Field(None, example="https://github.com/johndoe")
     role: Optional[str] = Field(None, example="AUTHENTICATED")
+    is_professional: Optional[bool] = Field(default=False, example=True)
+    professional_status_updated_at: Optional[datetime] = None
 
     @root_validator(pre=True)
     def check_at_least_one_value(cls, values):
