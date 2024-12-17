@@ -6,6 +6,7 @@ from app.models.user_model import User, UserRole
 from app.utils.nickname_gen import generate_nickname
 from app.utils.security import hash_password
 from app.services.jwt_service import decode_token  # Import your FastAPI app
+from unittest.mock import AsyncMock, patch
 
 # Example of a test function using the async_client fixture
 @pytest.mark.asyncio
@@ -192,27 +193,54 @@ async def test_list_users_unauthorized(async_client, user_token):
     assert response.status_code == 403  # Forbidden, as expected for regular user
 
 @pytest.mark.asyncio
-async def test_upgrade_professional_status_as_admin(async_client: AsyncClient, admin_user, admin_token, verified_user, db_session):
-    # Admin upgrading a verified user's professional status
+@patch("app.services.email_service.EmailService.send_user_email", new_callable=AsyncMock)
+async def test_upgrade_professional_status_as_admin(mock_send_email, async_client: AsyncClient, admin_user, admin_token, verified_user, db_session):
+    # Mock ensures no SMTP call is made
     headers = {"Authorization": f"Bearer {admin_token}"}
     response = await async_client.post(f"/users/{verified_user.id}/upgrade-professional", headers=headers)
-    assert response.status_code == 200, "Admin should be able to upgrade a user's professional status."
-    data = response.json()
-    assert data["is_professional"] is True, "User should now be professional."
-    # Check timestamp is updated
-    user_in_db = await db_session.get(User, verified_user.id)
-    assert user_in_db.professional_status_updated_at is not None, "Timestamp should be set after upgrade."
-
-@pytest.mark.asyncio
-async def test_upgrade_professional_status_as_manager(async_client: AsyncClient, manager_user, manager_token, verified_user, db_session):
-    # Manager upgrading a verified user's professional status
-    headers = {"Authorization": f"Bearer {manager_token}"}
-    response = await async_client.post(f"/users/{verified_user.id}/upgrade-professional", headers=headers)
-    assert response.status_code == 200, "Manager should be able to upgrade a user's professional status."
+    assert response.status_code == 200
     data = response.json()
     assert data["is_professional"] is True
     user_in_db = await db_session.get(User, verified_user.id)
     assert user_in_db.professional_status_updated_at is not None
+    mock_send_email.assert_awaited_once()
+
+@pytest.mark.asyncio
+@patch("app.services.email_service.EmailService.send_user_email", new_callable=AsyncMock)
+async def test_upgrade_professional_status_as_manager(
+    mock_send_email,
+    async_client: AsyncClient,
+    manager_user: User,
+    manager_token: str,
+    verified_user: User,
+    db_session
+):
+    """
+    Test that a manager can successfully upgrade a user's professional status.
+    """
+    # Prepare headers with manager's token
+    headers = {"Authorization": f"Bearer {manager_token}"}
+    
+    # Send POST request to upgrade professional status
+    response = await async_client.post(f"/users/{verified_user.id}/upgrade-professional", headers=headers)
+    
+    # Assert that the response status code is 200 OK
+    assert response.status_code == 200, "Manager should be able to upgrade a user's professional status."
+    
+    # Parse the JSON response
+    data = response.json()
+    
+    # Assert that 'is_professional' is now True
+    assert data["is_professional"] is True, "User should now be professional."
+    
+    # Fetch the updated user from the database
+    user_in_db = await db_session.get(User, verified_user.id)
+    
+    # Assert that 'professional_status_updated_at' is set
+    assert user_in_db.professional_status_updated_at is not None, "Timestamp should be set after upgrade."
+    
+    # Assert that the email was sent once
+    mock_send_email.assert_awaited_once()
 
 @pytest.mark.asyncio
 async def test_upgrade_professional_status_as_user_forbidden(async_client: AsyncClient, user, user_token, verified_user):
@@ -320,19 +348,51 @@ async def test_update_profile_user_not_found(async_client: AsyncClient, admin_to
     assert response.status_code == 404, "Should return 404 if user not found."
 
 @pytest.mark.asyncio
-async def test_upgrade_professional_status_already_professional(async_client: AsyncClient, admin_token, verified_user, db_session):
-    """Test upgrading a user who is already a professional."""
-    # First, upgrade once
+@patch("app.services.email_service.EmailService.send_user_email", new_callable=AsyncMock)
+async def test_upgrade_professional_status_already_professional(
+    mock_send_email,
+    async_client: AsyncClient,
+    admin_user: User,
+    admin_token: str,
+    verified_user: User,
+    db_session
+):
+    """
+    Test upgrading a user who is already a professional.
+    """
+    # Prepare headers with admin's token
     headers = {"Authorization": f"Bearer {admin_token}"}
-    await async_client.post(f"/users/{verified_user.id}/upgrade-professional", headers=headers)
-
-    # The user is now professional; upgrade again
-    response = await async_client.post(f"/users/{verified_user.id}/upgrade-professional", headers=headers)
-    assert response.status_code == 200, "Should still succeed if user is already professional."
-    data = response.json()
-    assert data["is_professional"] is True, "User remains professional."
-    user_in_db = await db_session.get(User, verified_user.id)
-    assert user_in_db.is_professional is True, "User remains professional after second upgrade attempt."
+    
+    # First upgrade attempt
+    response_first = await async_client.post(f"/users/{verified_user.id}/upgrade-professional", headers=headers)
+    
+    # Assert that the first upgrade succeeds
+    assert response_first.status_code == 200, "First upgrade should succeed."
+    data_first = response_first.json()
+    assert data_first["is_professional"] is True, "User should now be professional after first upgrade."
+    
+    # Fetch the user to ensure the timestamp is set
+    user_in_db_first = await db_session.get(User, verified_user.id)
+    assert user_in_db_first.professional_status_updated_at is not None, "Timestamp should be set after first upgrade."
+    
+    # Reset the mock to track new calls separately
+    mock_send_email.reset_mock()
+    
+    # Second upgrade attempt (user is already professional)
+    response_second = await async_client.post(f"/users/{verified_user.id}/upgrade-professional", headers=headers)
+    
+    # Assert that the second upgrade still returns 200 OK
+    assert response_second.status_code == 200, "Second upgrade should still succeed (idempotent)."
+    data_second = response_second.json()
+    assert data_second["is_professional"] is True, "User should remain professional after second upgrade."
+    
+    # Fetch the user again to verify timestamp (could be same or updated based on implementation)
+    user_in_db_second = await db_session.get(User, verified_user.id)
+    assert user_in_db_second.professional_status_updated_at is not None, "Timestamp should still be set after second upgrade."
+    
+    # Assert that the email was sent again if your implementation sends an email each time
+    # If your implementation avoids sending an email when already professional, adjust accordingly
+    mock_send_email.assert_awaited_once()
 
 @pytest.mark.asyncio
 async def test_update_user_profile_as_user_with_invalid_url(async_client: AsyncClient, verified_user, user_token, db_session):
