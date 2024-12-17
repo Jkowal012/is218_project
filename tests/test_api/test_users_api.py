@@ -250,3 +250,19 @@ async def test_update_user_profile_as_admin(async_client: AsyncClient, admin_use
     assert user_in_db.nickname == "new_nickname"
     assert user_in_db.role == UserRole.ADMIN
 
+@pytest.mark.asyncio
+async def test_update_user_profile_as_manager(async_client: AsyncClient, manager_user, manager_token, verified_user, db_session):
+    # Manager can also update restricted fields if desired
+    headers = {"Authorization": f"Bearer {manager_token}"}
+    updated_data = {
+        "bio": "Manager updated bio",
+        "role": "MANAGER"
+    }
+    response = await async_client.put(f"/users/{verified_user.id}/profile", json=updated_data, headers=headers)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["bio"] == "Manager updated bio"
+    assert data["role"] == "MANAGER"
+    user_in_db = await db_session.get(User, verified_user.id)
+    assert user_in_db.role == UserRole.MANAGER
+
