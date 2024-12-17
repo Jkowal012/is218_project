@@ -266,3 +266,34 @@ async def test_update_user_profile_as_manager(async_client: AsyncClient, manager
     user_in_db = await db_session.get(User, verified_user.id)
     assert user_in_db.role == UserRole.MANAGER
 
+@pytest.mark.asyncio
+async def test_update_own_profile_as_user(async_client: AsyncClient, verified_user, user_token, db_session):
+    # A normal authenticated user updating their own profile
+    # They cannot update restricted fields (role, is_locked, is_professional)
+    headers = {"Authorization": f"Bearer {user_token}"}
+    # The verified_user and user_token should correspond to the same user in the fixtures
+    # If not, you'd need a fixture that creates a verified_user and uses that same user for the token.
+    # Here we assume `user_token` and `verified_user` represent the same user. If not, create a fixture that ensures that.
+    updated_data = {
+        "email": "user_self_update@example.com",
+        "role": "ADMIN",  # user should not be able to update this
+        "is_professional": True,
+        "bio": "User updated bio"
+    }
+    response = await async_client.put(f"/users/{verified_user.id}/profile", json=updated_data, headers=headers)
+    assert response.status_code == 200
+    data = response.json()
+    # Check that restricted fields are not updated
+    assert data["role"] != "ADMIN"
+    assert data["is_professional"] is not True
+    # The allowed field 'bio' should be updated
+    assert data["bio"] == "User updated bio"
+    # The email is allowed to be updated by the user
+    assert data["email"] == "user_self_update@example.com"
+
+    user_in_db = await db_session.get(User, verified_user.id)
+    assert user_in_db.email == "user_self_update@example.com"
+    # role should remain unchanged (i.e., not ADMIN)
+    assert user_in_db.role != UserRole.ADMIN
+    # is_professional should remain unchanged (default or whatever it was)
+    assert not user_in_db.is_professional

@@ -223,9 +223,9 @@ def manager_token(manager_user):
     token_data = {"sub": str(manager_user.id), "role": manager_user.role.name}
     return create_access_token(data=token_data, expires_delta=timedelta(minutes=30))
 
-@pytest.fixture(scope="function")
-def user_token(user):
-    token_data = {"sub": str(user.id), "role": user.role.name}
+@pytest.fixture
+def user_token(verified_user):
+    token_data = {"sub": str(verified_user.id), "role": verified_user.role.name}
     return create_access_token(data=token_data, expires_delta=timedelta(minutes=30))
 
 @pytest.fixture

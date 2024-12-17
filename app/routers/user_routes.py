@@ -261,33 +261,22 @@ async def update_user_profile(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # Identify roles
     current_role = current_user.get("role")
-    current_user_id = current_user.get("user_id")  # This is likely the user's email or unique ID from the token
+    current_user_id = current_user.get("user_id")  # Assume this is a UUID string from the token's `sub`
 
-    # If the current user is neither ADMIN nor MANAGER, they must be updating their own profile
     if current_role not in ["ADMIN", "MANAGER"]:
-        # If the current user is not admin/manager, ensure they are updating themselves
-        # Depending on how the "sub" claim in JWT is set, this might be email or a UUID.
-        # If "user_id" in current_user is actually an email, you need to fetch by email or
-        # ensure that tokens store the user's UUID in "sub".
-        # Here we assume user.id and current_user_id both represent the same type of identifier (UUID).
-        
-        # If current_user_id is email, fetch user by email and compare IDs
-        # If current_user_id is a UUID (the user's id), you can directly compare:
-        
-        # Let's assume current_user_id matches user.id for simplicity:
+        # The current user is not admin/manager; verify they are updating their own profile by ID
+        # Since we assume `sub` is a UUID, we can directly compare:
         if str(user.id) != str(current_user_id):
             raise HTTPException(status_code=403, detail="You can only update your own profile")
 
-        # Non-admin users cannot update certain fields (like role, is_locked, is_professional)
+        # Non-admin users cannot update certain fields
         restricted_fields = ["role", "is_locked", "is_professional", "professional_status_updated_at"]
         update_data = user_update.model_dump(exclude_unset=True)
         for field in restricted_fields:
             update_data.pop(field, None)
     else:
-        # Admins/Managers can update any user's profile and any field,
-        # but you may want to restrict certain fields even for admins if needed.
+        # Admin/Manager can update any fields
         update_data = user_update.model_dump(exclude_unset=True)
 
     updated_user = await UserService.update(db, user.id, update_data)
