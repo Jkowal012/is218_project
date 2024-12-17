@@ -318,3 +318,39 @@ async def test_update_profile_user_not_found(async_client: AsyncClient, admin_to
     }
     response = await async_client.put(f"/users/{non_existent_user_id}/profile", json=updated_data, headers=headers)
     assert response.status_code == 404, "Should return 404 if user not found."
+
+@pytest.mark.asyncio
+async def test_upgrade_professional_status_already_professional(async_client: AsyncClient, admin_token, verified_user, db_session):
+    """Test upgrading a user who is already a professional."""
+    # First, upgrade once
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    await async_client.post(f"/users/{verified_user.id}/upgrade-professional", headers=headers)
+
+    # The user is now professional; upgrade again
+    response = await async_client.post(f"/users/{verified_user.id}/upgrade-professional", headers=headers)
+    assert response.status_code == 200, "Should still succeed if user is already professional."
+    data = response.json()
+    assert data["is_professional"] is True, "User remains professional."
+    user_in_db = await db_session.get(User, verified_user.id)
+    assert user_in_db.is_professional is True, "User remains professional after second upgrade attempt."
+
+@pytest.mark.asyncio
+async def test_update_user_profile_as_user_with_invalid_url(async_client: AsyncClient, verified_user, user_token, db_session):
+    """Test that attempting to update with an invalid URL fails with a validation error (422)."""
+    # Assume verified_user and user_token refer to the same user
+    headers = {"Authorization": f"Bearer {user_token}"}
+    updated_data = {
+        "github_profile_url": "not_a_valid_url"  # Invalid URL
+    }
+    response = await async_client.put(f"/users/{verified_user.id}/profile", json=updated_data, headers=headers)
+    assert response.status_code == 422, "Should fail validation for invalid URL."
+
+@pytest.mark.asyncio
+async def test_update_user_profile_as_manager_with_invalid_email(async_client: AsyncClient, manager_user, manager_token, verified_user):
+    """Test that updating a user profile with an invalid email results in a validation error."""
+    headers = {"Authorization": f"Bearer {manager_token}"}
+    updated_data = {
+        "email": "notanemail"  # Invalid email format
+    }
+    response = await async_client.put(f"/users/{verified_user.id}/profile", json=updated_data, headers=headers)
+    assert response.status_code == 422, "Should fail validation when providing an invalid email."
