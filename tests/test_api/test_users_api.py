@@ -297,3 +297,13 @@ async def test_update_own_profile_as_user(async_client: AsyncClient, verified_us
     assert user_in_db.role != UserRole.ADMIN
     # is_professional should remain unchanged (default or whatever it was)
     assert not user_in_db.is_professional
+
+@pytest.mark.asyncio
+async def test_user_cannot_update_another_users_profile(async_client: AsyncClient, verified_user, user_token, admin_user):
+    # A normal user tries to update another user's profile
+    headers = {"Authorization": f"Bearer {user_token}"}
+    updated_data = {
+        "bio": "Malicious attempt to update another user's profile"
+    }
+    response = await async_client.put(f"/users/{admin_user.id}/profile", json=updated_data, headers=headers)
+    assert response.status_code == 403, "User should not be able to update another user's profile."
